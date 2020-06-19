@@ -1,0 +1,93 @@
+version: '3.7'
+
+services:
+  pdns-server:
+    image: krypticlabs/pdns-server
+    hostname: ${PDNS_SERVER_HOST}
+    container_name: ${PDNS_SERVER_HOST}
+    networks:
+      default_net:
+        ipv4_address: ${PDNS_SERVER_IP}
+    expose:
+      - '53'
+      - '53/udp'
+    environment:
+      - PDNS_gmysql_host=${PDNS_DB_HOST}
+      - PDNS_gmysql_port=${PDNS_DB_PORT}
+      - PDNS_gmysql_user=${PDNS_DB_USER}
+      - PDNS_gmysql_password=${PDNS_DB_PASSWORD}
+      - PDNS_gmysql_dbname=${PDNS_DB_NAME}
+      - PDNS_master=yes
+      - PDNS_api=yes
+      - PDNS_api_key=${PDNS_SERVER_API_KEY}
+      - PDNS_webserver=yes
+      - PDNS_webserver_address=0.0.0.0
+      - PDNS_webserver_allow_from=${PDNS_SERVER_WEBSERVER_ALLOW_FROM}
+      - PDNS_webserver_password=secret2
+      - PDNS_version_string=anonymous
+      - PDNS_default_ttl=1500
+      - PDNS_soa_minimum_ttl=1200
+      - PDNS_default_soa_name=ns1.ramstone.net
+      - PDNS_default_soa_mail=hostmaster.ramstone.net
+
+
+  pdns-recursor:
+    image: krypticlabs/pdns-recursor
+    hostname: ${PDNS_RECURSOR_HOST}
+    container_name: ${PDNS_RECURSOR_HOST}
+    networks:
+       - default_net
+    ports:
+      - "192.168.0.75:53:53/tcp"
+      - "192.168.0.75:53:53/udp"
+    environment:
+      - PDNS_forward-zones=ramstone.net=${PDNS_SERVER_IP}
+      - PDNS_allow-from=192.168.0.0/23
+      - PDNS_max-negative-ttl=30
+      - PDNS_max-cache-ttl=300
+    depends_on:
+      - pdns-server
+
+  pdns-mysql:
+    image: krypticlabs/pdns-mysql
+    hostname: ${PDNS_DB_HOST}
+    container_name: ${PDNS_DB_HOST}
+    networks:
+       - default_net
+    expose:
+      - 3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${PDNS_DB_NAME}
+      - MYSQL_USER=${PDNS_DB_USER}
+      - MYSQL_PASSWORD=${PDNS_DB_PASSWORD}
+    volumes:
+      - pdns-mysql-data:/var/lib/mysql
+
+  admin:
+    image: ngoduykhanh/powerdns-admin:latest
+    container_name: pdns-admin
+    networks:
+       - default_net
+    ports:
+      - "9191:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+    environment:
+      - SQLALCHEMY_DATABASE_URI=mysql://${PDA_DB_USER}:${PDA_DB_PASSWORD}@${PDNS_DB_HOST}/${PDA_DB_NAME}
+      - GUNICORN_TIMEOUT=60
+      - GUNICORN_WORKERS=2
+      - GUNICORN_LOGLEVEL=DEBUG
+      - OFFLINE_MODE=False
+
+volumes:
+  pdns-mysql-data:
+
+networks:
+  default_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/29
