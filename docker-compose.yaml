@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   pdns-server:
-    image: krypticlabs/pdns-server
+    image: dockerhub.krypticlabs.com/powerdns/pdns-server
     hostname: ${PDNS_HOST}
     container_name: ${PDNS_HOST}
     networks:
@@ -12,11 +12,6 @@ services:
       - '53'
       - '53/udp'
     environment:
-      - PDNS_gmysql_host=${PDNS_DB_HOST}
-      - PDNS_gmysql_port=${PDNS_DB_PORT}
-      - PDNS_gmysql_user=${PDNS_DB_USER}
-      - PDNS_gmysql_password=${PDNS_DB_PASSWORD}
-      - PDNS_gmysql_dbname=${PDNS_DB_NAME}
       - PDNS_master=yes
       - PDNS_api=yes
       - PDNS_api_key=${PDNS_API_KEY}
@@ -29,19 +24,17 @@ services:
       - PDNS_soa_minimum_ttl=1200
       - PDNS_default_soa_name=ns1.ramstone.net
       - PDNS_default_soa_mail=hostmaster.ramstone.net
-    depends_on:
-      - pdns-mysql
 
 
   pdns-recursor:
-    image: krypticlabs/pdns-recursor
+    image: dockerhub.krypticlabs.com/powerdns/pdns-recursor
     hostname: ${PDNS_RECURSOR_HOST}
     container_name: ${PDNS_RECURSOR_HOST}
     networks:
        - default_net
     ports:
-      - "192.168.0.75:53:53/tcp"
-      - "192.168.0.75:53:53/udp"
+      - "192.168.1.45:53:53/tcp"
+      - "192.168.1.45:53:53/udp"
     environment:
       - PDNS_forward-zones=ramstone.net=${PDNS_IP}
       - PDNS_allow-from=192.168.0.0/23
@@ -50,28 +43,8 @@ services:
     depends_on:
       - pdns-server
 
-  pdns-mysql:
-    image: krypticlabs/pdns-mysql
-    hostname: ${PDNS_DB_HOST}
-    container_name: ${PDNS_DB_HOST}
-    networks:
-       - default_net
-    expose:
-      - 3306
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${PDNS_DB_NAME}
-      - MYSQL_USER=${PDNS_DB_USER}
-      - MYSQL_PASSWORD=${PDNS_DB_PASSWORD}
-    volumes:
-      - pdns-mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin" ,"-u", "root", "--password=${MYSQL_ROOT_PASSWORD}", "ping", "-h", "localhost", "-v"]
-      timeout: 10s
-      retries: 5
-
-  admin:
-    image: ngoduykhanh/powerdns-admin:latest
+  pdns-admin:
+    image: dockerhub.krypticlabs.com/powerdns/pdns-admin
     container_name: pdns-admin
     networks:
        - default_net
@@ -82,17 +55,12 @@ services:
       options:
         max-size: 50m
     environment:
-      - SQLALCHEMY_DATABASE_URI=mysql://${PDA_DB_USER}:${PDA_DB_PASSWORD}@${PDNS_DB_HOST}/${PDA_DB_NAME}
       - GUNICORN_TIMEOUT=60
       - GUNICORN_WORKERS=2
       - GUNICORN_LOGLEVEL=DEBUG
       - OFFLINE_MODE=False
     depends_on:
-      - pdns-mysql
       - pdns-server
-
-volumes:
-  pdns-mysql-data:
 
 networks:
   default_net:
