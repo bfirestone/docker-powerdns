@@ -3,11 +3,11 @@ version: '3.7'
 services:
   pdns-server:
     image: krypticlabs/pdns-server
-    hostname: ${PDNS_SERVER_HOST}
-    container_name: ${PDNS_SERVER_HOST}
+    hostname: ${PDNS_HOST}
+    container_name: ${PDNS_HOST}
     networks:
       default_net:
-        ipv4_address: ${PDNS_SERVER_IP}
+        ipv4_address: ${PDNS_IP}
     expose:
       - '53'
       - '53/udp'
@@ -19,16 +19,18 @@ services:
       - PDNS_gmysql_dbname=${PDNS_DB_NAME}
       - PDNS_master=yes
       - PDNS_api=yes
-      - PDNS_api_key=${PDNS_SERVER_API_KEY}
+      - PDNS_api_key=${PDNS_API_KEY}
       - PDNS_webserver=yes
       - PDNS_webserver_address=0.0.0.0
-      - PDNS_webserver_allow_from=${PDNS_SERVER_WEBSERVER_ALLOW_FROM}
+      - PDNS_webserver_allow_from=${PDNS_WEBSERVER_ALLOW_FROM}
       - PDNS_webserver_password=secret2
       - PDNS_version_string=anonymous
       - PDNS_default_ttl=1500
       - PDNS_soa_minimum_ttl=1200
       - PDNS_default_soa_name=ns1.ramstone.net
       - PDNS_default_soa_mail=hostmaster.ramstone.net
+    depends_on:
+      - pdns-mysql
 
 
   pdns-recursor:
@@ -41,7 +43,7 @@ services:
       - "192.168.0.75:53:53/tcp"
       - "192.168.0.75:53:53/udp"
     environment:
-      - PDNS_forward-zones=ramstone.net=${PDNS_SERVER_IP}
+      - PDNS_forward-zones=ramstone.net=${PDNS_IP}
       - PDNS_allow-from=192.168.0.0/23
       - PDNS_max-negative-ttl=30
       - PDNS_max-cache-ttl=300
@@ -63,6 +65,10 @@ services:
       - MYSQL_PASSWORD=${PDNS_DB_PASSWORD}
     volumes:
       - pdns-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"-u", "root", "--password=${MYSQL_ROOT_PASSWORD}", "ping", "-h", "localhost", "-v"]
+      timeout: 10s
+      retries: 5
 
   admin:
     image: ngoduykhanh/powerdns-admin:latest
@@ -81,6 +87,9 @@ services:
       - GUNICORN_WORKERS=2
       - GUNICORN_LOGLEVEL=DEBUG
       - OFFLINE_MODE=False
+    depends_on:
+      - pdns-mysql
+      - pdns-server
 
 volumes:
   pdns-mysql-data:
